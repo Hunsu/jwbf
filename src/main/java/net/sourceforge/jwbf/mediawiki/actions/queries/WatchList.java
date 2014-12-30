@@ -1,147 +1,112 @@
 package net.sourceforge.jwbf.mediawiki.actions.queries;
 
+import java.io.IOException;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map.Entry;
+import java.util.Set;
 
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import com.google.common.primitives.Ints;
+
 import net.sourceforge.jwbf.core.actions.RequestBuilder;
 import net.sourceforge.jwbf.core.actions.util.ActionException;
 import net.sourceforge.jwbf.core.actions.util.HttpAction;
-import net.sourceforge.jwbf.core.internal.TimeConverter;
 import net.sourceforge.jwbf.mapper.JsonMapper;
 import net.sourceforge.jwbf.mediawiki.ApiRequestBuilder;
 import net.sourceforge.jwbf.mediawiki.MediaWiki;
 import net.sourceforge.jwbf.mediawiki.bots.MediaWikiBot;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * A query class to get a list of pages on the current user's watchlist that were changed within the
  * given time period.
- * <p/>
+ *
  * You must be logged in or pass a user name and his watchlist token to use this class.
- * <p/>
- * See also: <a href="https://www.mediawiki.org/wiki/API:Watchlist">API:Watchlist</a>
  *
  * @author Rabah Meradi.
+ *
  */
-// TODO add public if a working test and integration test (IT) is present
-class WatchList extends BaseQuery<WatchResponse> {
+public final class WatchList extends BaseQuery<WatchResponse> {
 
-  static String formatDate(Date date) {
-    return TimeConverter.valueOf(date);
-  }
-
-  /**
+  /*
    * The properties that could be returned with WatchList request.
    */
   public enum WatchListProperties {
-    /**
-     * The user who made the change
-     */
+    /* The user who made the change */
     USER("user"),
-    /**
-     * The title of page
-     */
+    /* The title of page */
     TITLE("title"),
-    /**
-     * The edit/log comment
-     */
+    /* The edit/log comment */
     COMMENT("comment"),
-    /**
-     * The edit/log comment in HTML format
-     */
+    /* The edit/log comment in HTML format */
     PARSED_COMMENT("parsedcomment"),
-    /**
-     * The time and date of the change
-     */
+    /* The time and date of the change */
     TIMESTAMP("timestamp"),
-    /**
-     * Adds timestamp of when the user was last notified about the edit
-     */
+    /* Adds timestamp of when the user was last notified about the edit */
     NOTIFICATION_TIMESTAMP("notificationtimestamp"),
-    /**
-     * The page ID and revision ID
-     */
+    /* The page ID and revision ID */
     IDS("ids"),
-    /**
-     * The page size before and after the change
-     */
+    /* The page size before and after the change */
     SIZES("sizes"),
-    /**
-     * Whether the change is patrolled.
-     */
+    /* Whether the change is patrolled. */
     PATROL("patrol"),
-    /**
-     * The flags associated with the change (bot edit, minor edit ...)
-     */
+    /* The flags associated with the change (bot edit, minor edit ...) */
     FLAGS("flags");
-    /**
-     * The name of the property like it's used by MW
-     */
+
+    /* The name of the property like it's used by MW */
     private String name;
 
-    private WatchListProperties(String name) {
+    WatchListProperties(final String name) {
       this.name = name;
     }
 
+    @Override
     public String toString() {
       return name;
     }
   }
 
   public enum EditType {
-    /**
-     * Regular page edits
-     */
+    /* Regular page edits */
     EDIT("edit"),
-    /**
-     * External edits
-     */
+    /* External edits */
     EXTERNAL("external"),
-    /**
-     * Pages creation
-     */
+    /* Pages creation */
     NEW("new"),
-    /**
-     * Log entries
-     */
+    /* Log entries */
     LOG("log");
-    /**
-     * The name of the property like it's used by MW
-     */
+    /* The name of the property like it's used by MW */
     private String name;
 
-    private EditType(String name) {
+    EditType(final String name) {
       this.name = name;
     }
 
+    @Override
     public String toString() {
       return name;
     }
   }
 
   public enum Direction {
-    /**
-     * Older edits first
-     */
+    /* Older edits first */
     OLDER("older"),
-    /**
-     * Newer edits first
-     */
+    /* Newer edits first */
     NEWER("newer");
-    /**
-     * the name used by MW
-     */
+    /* the name used by MW */
     private String name;
 
-    private Direction(String name) {
+    Direction(final String name) {
       this.name = name;
     }
 
+    @Override
     public String toString() {
       return name;
     }
@@ -151,7 +116,7 @@ class WatchList extends BaseQuery<WatchResponse> {
 
   private final JsonMapper mapper = new JsonMapper();
 
-  private final Optional<Integer> limit;
+  private final int limit;
   private final Date start;
   private final Date end;
   private final Direction dir;
@@ -161,7 +126,6 @@ class WatchList extends BaseQuery<WatchResponse> {
   private final String excludeUser;
   private final String owner;
   private final String token;
-
   private final ImmutableList<EditType> editType;
   private final boolean showBots;
   private final boolean showAnonymous;
@@ -169,7 +133,7 @@ class WatchList extends BaseQuery<WatchResponse> {
 
   private WatchListResults responseList;
 
-  private WatchList(Builder builder) {
+  private WatchList(final Builder builder) {
     super(builder.bot);
     if (!bot().isLoggedIn()) {
       if (builder.owner == null || builder.token == null) {
@@ -186,28 +150,38 @@ class WatchList extends BaseQuery<WatchResponse> {
     this.excludeUser = builder.excludeUser;
     this.owner = builder.owner;
     this.token = builder.token;
-
     this.editType = builder.editTypes;
     this.showBots = builder.showBots;
     this.showAnonymous = builder.showAnonymous;
     this.showMinor = builder.showMinor;
   }
 
-  private static String joinedAndEncodedParams(List<?> params) {
-    return MediaWiki.urlEncode(MediaWiki.pipeJoiner().join(params));
+  // TODO: do we need to check if it's logged?
+  private WatchList(final MediaWikiBot bot, final int limit, final Date start, final Date end, final Direction dir,
+      final ImmutableList<Integer> namespaces, final ImmutableList<WatchListProperties> properties, final String user,
+      final String excludeUser, final String owner, final String token, final ImmutableList<EditType> editTypes,
+      final boolean showBots, final boolean showAnonymous, final boolean showMinor) {
+    super(bot);
+    this.limit = limit;
+    this.namespaces = namespaces;
+    this.start = start;
+    this.end = end;
+    this.dir = dir;
+    this.properties = properties;
+    this.user = user;
+    this.excludeUser = excludeUser;
+    this.owner = owner;
+    this.token = token;
+    this.editType = editTypes;
+    this.showBots = showBots;
+    this.showAnonymous = showAnonymous;
+    this.showMinor = showMinor;
   }
 
   @Override
   protected WatchList copy() {
-    return new WatchList(builderOf(this));
-  }
-
-  private WatchList.Builder builderOf(WatchList watchList) {
-    return WatchList.from(bot()) //
-        .excludeUser(watchList.excludeUser) //
-        .onlyTypes(watchList.editType) //
-        // TODO complete this self builder
-        ;
+    return new WatchList(bot(), limit, start, end, dir, namespaces, properties, user, excludeUser,
+        owner, token, editType, showBots, showAnonymous, showMinor);
   }
 
   @Override
@@ -218,16 +192,17 @@ class WatchList extends BaseQuery<WatchResponse> {
         .param("list", "watchlist");
     requestBuilder.param("wlnamespace", MediaWiki.urlEncodedNamespace(namespaces));
     if (!properties.isEmpty()) {
-      requestBuilder.param("wlprop", joinedAndEncodedParams(Lists.newArrayList(properties)));
+      requestBuilder
+          .param("wlprop", MediaWiki.joinParam(new HashSet<WatchListProperties>(properties)));
     }
     if (start != null) {
-      requestBuilder.param("wlstart", start.toString()); // TODO do formatting in this class
+      requestBuilder.param("wlstart", start);
     }
     if (end != null) {
-      requestBuilder.param("wlend", end.toString()); // TODO do formatting in this class
+      requestBuilder.param("wlend", end);
     }
     if (dir != null) {
-      requestBuilder.param("wldir", dir.toString());
+      requestBuilder.param("wldir", dir.name());
     }
     if (user != null) {
       requestBuilder.param("wluser", user);
@@ -236,51 +211,51 @@ class WatchList extends BaseQuery<WatchResponse> {
         requestBuilder.param("wlexcludeuser", excludeUser);
       }
     }
-    if (!editType.isEmpty()) {
-      requestBuilder.param("wltype", joinedAndEncodedParams(Lists.newArrayList(editType)));
+    if (owner != null) {
+      requestBuilder.param("wlowner", owner);
+      requestBuilder.param("wltoken", token);
     }
-    requestBuilder.param("wlshow", createShowParamValue());
-
-    if (limit.isPresent()) {
-      requestBuilder.param("wllimit", limit.get());
-    } else {
+    if (!editType.isEmpty()) {
+      requestBuilder.param("wltype", MediaWiki.joinParam(new HashSet<EditType>(editType)));
+      Set<String> shows = new HashSet<String>();
+      if (showBots) {
+        shows.add("bot");
+      } else {
+        shows.add("!bot");
+      }
+      if (showAnonymous) {
+        shows.add("anon");
+      } else {
+        shows.add("!anon");
+      }
+      if (showMinor) {
+        shows.add("minor");
+      } else {
+        shows.add("!minor");
+      }
+      requestBuilder.param("wlshow", MediaWiki.joinParam(shows));
+    }
+    if (limit < 1) {
       requestBuilder.param("wllimit", "max");
+    } else {
+      requestBuilder.param("wllimit", limit);
     }
     if (hasNextPageInfo()) {
       requestBuilder.param("wlcontinue", getNextPageInfo());
     }
     log.debug("using query {}", requestBuilder.build());
     return requestBuilder.buildGet();
-  }
 
-  private String createShowParamValue() {
-    List<String> shows = Lists.newArrayList();
-    if (showBots) {
-      shows.add("bot");
-    } else {
-      shows.add("!bot");
-    }
-    if (showAnonymous) {
-      shows.add("anon");
-    } else {
-      shows.add("!anon");
-    }
-    if (showMinor) {
-      shows.add("minor");
-    } else {
-      shows.add("!minor");
-    }
-    return joinedAndEncodedParams(shows);
   }
 
   @Override
-  protected ImmutableList<WatchResponse> parseElements(String json) {
+  protected ImmutableList<WatchResponse> parseElements(final String json) {
     this.responseList = mapper.get(json, WatchListResults.class);
     return ImmutableList.copyOf(responseList.getResults());
   }
 
   @Override
-  protected Optional<String> parseHasMore(String s) {
+  protected Optional<String> parseHasMore(final String s) {
     if (responseList.canContinue()) {
       return Optional.of(responseList.getContinueToken());
     } else {
@@ -288,44 +263,46 @@ class WatchList extends BaseQuery<WatchResponse> {
     }
   }
 
-  public static Builder from(MediaWikiBot bot) {
+  public static Builder from(final MediaWikiBot bot) {
     return new Builder(bot);
   }
 
   public static class Builder {
 
     private MediaWikiBot bot;
-    private Optional<Integer> limit = Optional.absent();
-    private ImmutableList<WatchListProperties> properties = ImmutableList.of();
+    private int limit = -1;
+    private ImmutableList<WatchListProperties> properties =
+        new ImmutableList.Builder<WatchListProperties>().build();
     private boolean showBots = true;
     private boolean showAnonymous = true;
-    private ImmutableList<Integer> namespaces = MediaWiki.NS_EVERY;
     private boolean showMinor = true;
-    private ImmutableList<EditType> editTypes = ImmutableList.of();
-    private String user;
-    private String excludeUser;
-    private Date start;
-    private Date end;
-    private Direction dir;
-    private String owner;
-    private String token;
+    private ImmutableList<Integer> namespaces = ImmutableList.copyOf(MediaWiki.NS_EVERY);
+    private ImmutableList<EditType> editTypes = new ImmutableList.Builder<EditType>().build();
+    ;
+    private String user = null;
+    private String excludeUser = null;
+    private Date start = null;
+    private Date end = null;
+    private Direction dir = null;
+    private String owner = null;
+    private String token = null;
 
-    public Builder(MediaWikiBot bot) {
+    public Builder(final MediaWikiBot bot) {
       this.bot = bot;
     }
 
     /**
-     * How many results to return per request. Do not set it to return the maximum.
+     * How many results to return per request. Use a negative value to return the maximum.
      */
-    public Builder withLimit(int limit) {
-      this.limit = Optional.of(limit);
+    public Builder withLimit(final int limit) {
+      this.limit = limit;
       return this;
     }
 
     /**
      * Only list pages in these namespaces
      */
-    public Builder withNamespaces(int... namespaces) {
+    public Builder withNamespaces(final int... namespaces) {
       this.namespaces = ImmutableList.copyOf(Ints.asList(namespaces));
       return this;
     }
@@ -333,7 +310,7 @@ class WatchList extends BaseQuery<WatchResponse> {
     /**
      * Which properties to get.
      */
-    public Builder withProperties(WatchListProperties... properties) {
+    public Builder withProperties(final WatchListProperties... properties) {
       this.properties = ImmutableList.copyOf(properties);
       return this;
     }
@@ -342,8 +319,9 @@ class WatchList extends BaseQuery<WatchResponse> {
      * Whatever to include edits made by bots or not
      *
      * @param show include edits made by bots or not
+     * TODO @Hunsu never used?
      */
-    public Builder showBots(boolean show) {
+    public Builder showBots(final boolean show) {
       this.showBots = show;
       return this;
     }
@@ -352,8 +330,9 @@ class WatchList extends BaseQuery<WatchResponse> {
      * Whatever to include edits made by anonymous users or not
      *
      * @param show include edits made by anonymous users or not
+     * TODO @Hunsu never used?
      */
-    public Builder showAnonymous(boolean show) {
+    public Builder showAnonymous(final boolean show) {
       this.showAnonymous = show;
       return this;
     }
@@ -362,8 +341,9 @@ class WatchList extends BaseQuery<WatchResponse> {
      * Include or not edits that are marked as minor
      *
      * @param show include minor edits or not
+     * TODO @Hunsu never used?
      */
-    public Builder showMinor(boolean show) {
+    public Builder showMinor(final boolean show) {
       this.showMinor = show;
       return this;
     }
@@ -372,22 +352,20 @@ class WatchList extends BaseQuery<WatchResponse> {
      * Only list certain types of changes
      *
      * @param types the types of changes that will be listed
+     * TODO @Hunsu never used?
      */
-    public Builder onlyTypes(EditType... types) {
-      return onlyTypes(ImmutableList.copyOf(types));
-    }
-
-    public Builder onlyTypes(ImmutableList<EditType> types) {
-      this.editTypes = types;
+    public Builder onlyTypes(final EditType... types) {
+      this.editTypes = ImmutableList.copyOf(types);
       return this;
     }
 
     /**
      * Only list changes made by this a specific user
      *
-     * @param user the user
+     * @param user  the user
+     * TODO @Hunsu never used?
      */
-    public Builder onlyUser(String user) {
+    public Builder onlyUser(final String user) {
       this.user = user;
       return this;
     }
@@ -396,8 +374,9 @@ class WatchList extends BaseQuery<WatchResponse> {
      * Exclude changes made by a certain user
      *
      * @param user the user
+     * TODO @Hunsu never used?
      */
-    public Builder excludeUser(String user) {
+    public Builder excludeUser(final String user) {
       this.excludeUser = user;
       return this;
     }
@@ -406,9 +385,9 @@ class WatchList extends BaseQuery<WatchResponse> {
      * The user whose watchlist you want
      *
      * @param ownerUser the user
-     * @param token     the wtahclist token of the user
+     * @param token the watchlist token of the user
      */
-    public Builder owner(String ownerUser, String token) {
+    public Builder owner(final String ownerUser, final String token) {
       if (owner != null && token == null) {
         throw new IllegalArgumentException("owner and token mustn't be null");
       }
@@ -422,7 +401,7 @@ class WatchList extends BaseQuery<WatchResponse> {
      *
      * @param start the timestamp
      */
-    public Builder withStart(Date start) {
+    public Builder withStart(final Date start) {
       if (end != null && start != null && end.compareTo(start) < 0) {
         throw new IllegalArgumentException("start must be before end");
       }
@@ -434,8 +413,9 @@ class WatchList extends BaseQuery<WatchResponse> {
      * The timestamp to end listing at
      *
      * @param end the timestamp
+     * TODO @Hunsu never used?
      */
-    public Builder withEnd(Date end) {
+    public Builder withEnd(final Date end) {
       if (start != null && end != null && end.compareTo(start) < 0) {
         throw new IllegalArgumentException("end must be later than start");
       }
@@ -447,9 +427,9 @@ class WatchList extends BaseQuery<WatchResponse> {
      * Direction to list in
      *
      * @param dir the direction
+     * TODO @Hunsu never used?
      */
-
-    public Builder withDir(Direction dir) {
+    public Builder withDir(final Direction dir) {
       this.dir = dir;
       return this;
     }
@@ -459,10 +439,8 @@ class WatchList extends BaseQuery<WatchResponse> {
      *
      * @return the watchlist query
      */
-
     public WatchList build() {
       return new WatchList(this);
     }
   }
-
 }
