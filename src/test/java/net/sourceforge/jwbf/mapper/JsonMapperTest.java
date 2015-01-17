@@ -10,9 +10,11 @@ import javax.annotation.Nonnull;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Charsets;
 import com.google.common.io.Files;
@@ -62,6 +64,16 @@ public class JsonMapperTest {
       @Nonnull
       @Override
       public Object toJson(@Nonnull String jsonString, Class<?> clazz) {
+        return null;
+      }
+
+      @Override
+      public HashMap<String, Object> toMap(String json) {
+        return null;
+      }
+
+      @Override
+      public JsonNode toJsonNode(String nonNullJson) {
         return null;
       }
     };

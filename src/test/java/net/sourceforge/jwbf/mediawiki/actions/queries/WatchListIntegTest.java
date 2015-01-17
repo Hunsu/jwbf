@@ -26,14 +26,14 @@ public class WatchListIntegTest extends AbstractIntegTest {
 
   RequestMatcher loginSuccess = ApiMatcherBuilder.of() //
       .param("action", "login") //
-      .param("format", "xml") //
+      .param("format", "json") //
       .build();
 
   @Test
   @Ignore // TODO remove
   public void test() {
     // GIVEN
-    server.request(loginSuccess).response(TestHelper.anyWikiResponse("login_valid.xml"));
+    server.request(loginSuccess).response(TestHelper.anyWikiResponse("login_valid.json"));
     MocoIntegTest.applySiteinfoXmlToServer(server, MediaWiki.Version.MW1_24, this.getClass());
     server.request(watchlist).response(TestHelper.anyWikiResponse("watchlist.json"));
     MediaWikiBot bot = new MediaWikiBot(host());

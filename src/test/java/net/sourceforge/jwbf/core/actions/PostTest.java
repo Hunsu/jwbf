@@ -9,13 +9,10 @@ import static org.junit.Assert.fail;
 import java.io.File;
 import java.util.Locale;
 
-import net.sourceforge.jwbf.GAssert;
-
-import org.junit.Test;
-
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableMultimap;
+import net.sourceforge.jwbf.GAssert;
+import org.junit.Test;
 
 public class PostTest {
 

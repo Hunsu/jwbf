@@ -20,6 +20,7 @@ package net.sourceforge.jwbf.mediawiki.actions.editing;
 
 import java.util.List;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
@@ -28,8 +29,7 @@ import com.google.common.collect.Lists;
 import net.sourceforge.jwbf.core.actions.Get;
 import net.sourceforge.jwbf.core.actions.util.HttpAction;
 import net.sourceforge.jwbf.core.contentRep.SimpleArticle;
-import net.sourceforge.jwbf.mapper.XmlConverter;
-import net.sourceforge.jwbf.mapper.XmlElement;
+import net.sourceforge.jwbf.mapper.JsonMapper;
 import net.sourceforge.jwbf.mediawiki.ApiRequestBuilder;
 import net.sourceforge.jwbf.mediawiki.MediaWiki;
 import net.sourceforge.jwbf.mediawiki.MediaWiki.Version;
@@ -48,7 +48,6 @@ public class GetRevision extends MWAction {
 
   private List<SimpleArticle> articles = Lists.newArrayList();
   private List<Optional<SimpleArticle>> articlesOpt = Lists.newArrayList();
-  private final ImmutableList<String> names;
 
   public static final int CONTENT = 1 << 1;
   public static final int TIMESTAMP = 1 << 2;
@@ -64,6 +63,8 @@ public class GetRevision extends MWAction {
 
   private final Get msg;
 
+  private JsonMapper mapper = JsonMapper.create();
+
   /**
    * TODO follow redirects. TODO change constructor field ordering; bot
    */
@@ -73,15 +74,14 @@ public class GetRevision extends MWAction {
 
   public GetRevision(ImmutableList<String> names, int properties) {
     this.properties = properties;
-    this.names = names;
     // TODO continue=-||
     msg = new ApiRequestBuilder() //
         .action("query") //
-        .formatXml() //
+        .formatJson() //
         .param("prop", "revisions") //
         .param("titles", MediaWiki.urlEncode(MediaWiki.pipeJoined(names))) //
         .param("rvprop", getDataProperties(properties) + getReversion(properties)) //
-        .param("rvlimit", "1") //
+            //.param("rvlimit", "1") TODO: when passing multiples pages we can't pass rvlimit
         .buildGet();
   }
 
@@ -134,27 +134,26 @@ public class GetRevision extends MWAction {
     }
   }
 
-  private void parse(final String xml) {
-
-    Optional<XmlElement> childOpt = XmlConverter.getChildOpt(xml, "query", "pages");
-    if (childOpt.isPresent()) {
-      List<XmlElement> pages = childOpt.get().getChildren("page");
-      for (XmlElement page : pages) {
-
+  private void parse(final String json) {
+    JsonNode node = mapper.toJsonNode(json);
+    JsonNode pages = node.path("query").path("pages");
+    if (!node.isMissingNode()) {
+      for (JsonNode page : pages) {
         SimpleArticle sa = new SimpleArticle();
-        sa.setTitle(page.getAttributeValue("title"));
-        Optional<XmlElement> revOpt = page.getChild("revisions").getChildOpt("rev");
-        if (revOpt.isPresent()) {
-          XmlElement rev = revOpt.get();
-          sa.setText(rev.getText());
-          sa.setRevisionId(rev.getAttributeValueOpt("revid").or(""));
-          sa.setEditSummary(rev.getAttributeValueOpt("comment").or(""));
-          sa.setEditor(rev.getAttributeValueOpt("user").or(""));
+        sa.setTitle(page.get("title").asText());
+        if (!page.has("missing")) {
+          sa.setPageId(page.get("pageid").asInt()); // TODO @Hunus store as String
+          JsonNode rev = page.path("revisions");
+          rev = rev.get(0);
+          sa.setText(rev.get("*").asText());
+          sa.setRevisionId(Optional.of(rev.path("revid").asText()).or(""));
+          sa.setEditSummary(Optional.of(rev.path("comment").asText()).or(""));
+          sa.setEditor(Optional.of(rev.path("user").asText()).or(""));
           if (hasMarker(properties, TIMESTAMP)) {
-            sa.setEditTimestamp(rev.getAttributeValueOpt("timestamp").or(""));
+            sa.setEditTimestamp(Optional.of(rev.path("timestamp").asText()).or(""));
           }
           if (hasMarker(properties, FLAGS)) {
-            if (rev.hasAttribute("minor")) {
+            if (rev.has("minor")) {
               sa.setMinorEdit(true);
             } else {
               sa.setMinorEdit(false);

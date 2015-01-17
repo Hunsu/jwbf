@@ -1,7 +1,6 @@
 package net.sourceforge.jwbf.mediawiki.actions.queries;
 
 import java.io.IOException;
-
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -35,7 +34,7 @@ import org.slf4j.LoggerFactory;
  */
 public final class WatchList extends BaseQuery<WatchResponse> {
 
-   /*
+  /*
    * The properties that could be returned with WatchList request.
    */
   public enum WatchListProperties {

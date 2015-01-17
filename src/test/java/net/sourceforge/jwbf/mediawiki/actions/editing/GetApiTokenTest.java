@@ -19,34 +19,25 @@ public class GetApiTokenTest {
   public void testProcessReturningText() {
     // GIVEN
     testee = new GetApiToken(Intoken.EDIT, "test");
-    String xml = TestHelper.anyWikiResponse("intoken.xml");
+    String json = TestHelper.anyWikiResponse("intoken.json");
 
     // WHEN
-    testee.processReturningText(xml, testee.popAction());
+    testee.processReturningText(json, testee.popAction());
 
     // THEN
     ParamTuple<String> encodedToken =
-        new ParamTuple("token", "e0691d5329779f0c01b1b286cd44a278%2B%5C");
+        new ParamTuple<String>("token", "e0691d5329779f0c01b1b286cd44a278%2B%5C");
     assertEquals(encodedToken, testee.get().urlEncodedToken());
-    ParamTuple<String> token = new ParamTuple("token", "e0691d5329779f0c01b1b286cd44a278+\\");
+    ParamTuple<String> token =
+        new ParamTuple<String>("token", "e0691d5329779f0c01b1b286cd44a278+\\");
     assertEquals(token, testee.get().token());
   }
 
-  @Test
+  @Test(expected = NullPointerException.class)
   public void testProcessReturningText_requestMissmatch() {
-    // GIVEN
     testee = new GetApiToken(Intoken.DELETE, "test");
-    String xml = TestHelper.anyWikiResponse("intoken.xml");
-
-    // WHEN
-    try {
-      testee.processReturningText(xml, testee.popAction());
-      fail();
-    } catch (NullPointerException e) {
-      // THEN
-      assertEquals("attribute value for key: deletetoken must not be null", e.getMessage());
-    }
-
+    String json = TestHelper.anyWikiResponse("intoken.json");
+    testee.processReturningText(json, testee.popAction());
   }
 
   @Test
@@ -76,7 +67,7 @@ public class GetApiTokenTest {
 
     // THEN
     assertFalse(testee.hasMoreActions());
-    assertEquals("/api.php?action=query&format=xml&intoken=move&prop=info&titles=" + title,
+    assertEquals("/api.php?action=query&format=json&intoken=move&prop=info&titles=" + title,
         first.getRequest());
 
   }

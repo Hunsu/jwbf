@@ -2,15 +2,18 @@ package net.sourceforge.jwbf.mediawiki.actions.editing;
 
 import java.util.Set;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import net.sourceforge.jwbf.core.actions.RequestBuilder;
 import net.sourceforge.jwbf.core.actions.util.HttpAction;
 import net.sourceforge.jwbf.core.actions.util.PermissionException;
 import net.sourceforge.jwbf.core.internal.Checked;
+import net.sourceforge.jwbf.mapper.JsonMapper;
 import net.sourceforge.jwbf.mapper.XmlConverter;
 import net.sourceforge.jwbf.mediawiki.ApiRequestBuilder;
 import net.sourceforge.jwbf.mediawiki.MediaWiki;
+import net.sourceforge.jwbf.mediawiki.actions.util.ApiException;
 import net.sourceforge.jwbf.mediawiki.actions.util.MWAction;
 import net.sourceforge.jwbf.mediawiki.bots.MediaWikiBot;
 import org.slf4j.Logger;
@@ -19,6 +22,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Action class using the MediaWiki-API's to allow your bot to move articles in your MediaWiki add
  * the following line to your MediaWiki's LocalSettings.php:<br>
+ *
  * <pre>
  * $wgEnableWriteAPI = true;
  * $wgGroupPermissions['bot']['move'] = true;
@@ -26,7 +30,9 @@ import org.slf4j.LoggerFactory;
  * $wgGroupPermissions['bot']['move-subpages'] = true;       // optional
  * $wgGroupPermissions['bot']['move-rootuserpages'] = true;  // optional
  * </pre>
+ *
  * Move an article with
+ *
  * <pre>
  * String oldtitle = ...
  * String newtitle = ...
@@ -52,15 +58,17 @@ public class MovePage extends MWAction {
   private final GetApiToken token;
   private boolean moveToken = true;
 
+  private JsonMapper mapper = new JsonMapper();
+
   /**
    * Constructs a new <code>MovePage</code> action.
    *
-   * @param bot          the MediaWikiBot
-   * @param oldtitle     title to move
-   * @param newtitle     new title
-   * @param reason       reason why to move
+   * @param bot the MediaWikiBot
+   * @param oldtitle title to move
+   * @param newtitle new title
+   * @param reason reason why to move
    * @param withsubpages if <b>TRUE</b> also move the subpages
-   * @param noredirect   if <b>TRUE</b> create no redirects
+   * @param noredirect if <b>TRUE</b> create no redirects
    */
   public MovePage(MediaWikiBot bot, String oldtitle, String newtitle, String reason,
       boolean withsubpages, boolean noredirect) {
@@ -95,7 +103,7 @@ public class MovePage extends MWAction {
   private HttpAction getSecondRequest() {
     RequestBuilder requestBuilder = new ApiRequestBuilder() //
         .action("move") //
-        .formatXml() //
+        .formatJson() //
         .param("from", MediaWiki.urlEncode(oldtitle)) //
         .param("to", MediaWiki.urlEncode(newtitle)) //
         .postParam(token.get().token()) //
@@ -119,13 +127,17 @@ public class MovePage extends MWAction {
    * {@inheritDoc}
    */
   @Override
-  public String processReturningText(String xml, HttpAction hm) {
-    XmlConverter.failOnError(xml);
+  public String processReturningText(String json, HttpAction hm) {
+    JsonNode node = mapper.toJsonNode(json).path("error");
+    if (!node.isMissingNode()) {
+      throw new ApiException(node.get("code").asText(), node.get("info").asText());
+    }
+    XmlConverter.failOnError(json);
     if (moveToken) {
-      token.processReturningText(xml, hm);
+      token.processReturningText(json, hm);
       moveToken = false;
     } else {
-      log.debug("Got returning text: \"{}\"", xml);
+      log.debug("Got returning text: \"{}\"", json);
       setHasMoreMessages(false);
     }
 

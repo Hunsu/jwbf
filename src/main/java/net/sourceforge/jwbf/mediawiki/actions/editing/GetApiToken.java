@@ -2,16 +2,13 @@ package net.sourceforge.jwbf.mediawiki.actions.editing;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.base.Function;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.base.Optional;
-import com.google.common.collect.ImmutableMap;
 import net.sourceforge.jwbf.core.Optionals;
 import net.sourceforge.jwbf.core.actions.Get;
 import net.sourceforge.jwbf.core.actions.ParamTuple;
 import net.sourceforge.jwbf.core.actions.util.HttpAction;
-import net.sourceforge.jwbf.core.internal.NonnullFunction;
-import net.sourceforge.jwbf.mapper.XmlConverter;
-import net.sourceforge.jwbf.mapper.XmlElement;
+import net.sourceforge.jwbf.mapper.JsonMapper;
 import net.sourceforge.jwbf.mediawiki.ApiRequestBuilder;
 import net.sourceforge.jwbf.mediawiki.MediaWiki;
 import net.sourceforge.jwbf.mediawiki.actions.util.DequeMWAction;
@@ -26,6 +23,8 @@ import org.slf4j.LoggerFactory;
  * @see <a href="http://www.mediawiki.org/wiki/API:Changing_wiki_content" >Editing-API</a>
  */
 public class GetApiToken extends DequeMWAction<GetApiToken.TokenResponse> {
+
+  private JsonMapper mapper = new JsonMapper();
 
   @Override
   public TokenResponse get() {
@@ -75,21 +74,34 @@ public class GetApiToken extends DequeMWAction<GetApiToken.TokenResponse> {
   // TODO this does not feel the elegant way.
   // Probably put complete request URIs into this enum objects
   // to support different URIs for different actions.
-  public enum Intoken {
-    DELETE, EDIT, MOVE, PROTECT, EMAIL, BLOCK, UNBLOCK, IMPORT
-  }
+  public enum Intoken { //
+    DELETE("delete", "deletetoken"), //
+    EDIT("edit", "edittoken"), //
+    MOVE("move", "movetoken"), //
+    PROTECT("protect", "protecttoken"), //
+    EMAIL("email", "emailtoken"), //
+    BLOCK("block", "blocktoken"), //
+    UNBLOCK("unblock", "unblocktoken"), //
+    IMPORT("import", "IMPORT"),  //
+    WATCH("watch", "watchtoken") //
+    ;
 
-  private static final ImmutableMap<Intoken, Function<XmlElement, String>> TOKEN_FUNCTIONS =
-      ImmutableMap.<Intoken, Function<XmlElement, String>>builder() //
-          .put(Intoken.DELETE, tokenFunctionOf("deletetoken")) //
-          .put(Intoken.EDIT, tokenFunctionOf("edittoken")) //
-          .put(Intoken.MOVE, tokenFunctionOf("movetoken")) //
-          .put(Intoken.PROTECT, tokenFunctionOf("protecttoken")) //
-          .put(Intoken.EMAIL, tokenFunctionOf("emailtoken")) //
-          .put(Intoken.BLOCK, tokenFunctionOf("blocktoken")) //
-          .put(Intoken.UNBLOCK, tokenFunctionOf("unblocktoken")) //
-          .put(Intoken.IMPORT, tokenFunctionOf("IMPORT")) //
-          .build();
+    private String requestName;
+    private String responseName;
+
+    Intoken(String requestName, String responseName) {
+      this.requestName = requestName;
+      this.responseName = responseName;
+    }
+
+    public String getRequestName() {
+      return requestName;
+    }
+
+    public String getResponseName() {
+      return responseName;
+    }
+  }
 
   private Optional<String> token = Optional.absent();
 
@@ -101,10 +113,10 @@ public class GetApiToken extends DequeMWAction<GetApiToken.TokenResponse> {
    * Constructs a new <code>GetToken</code> action.
    *
    * @param intoken type to get the token for
-   * @param title   title of the article to generate the token for
+   * @param titles title of the article to generate the token for
    */
-  public GetApiToken(Intoken intoken, String title) {
-    super(generateTokenRequest(intoken, title));
+  public GetApiToken(Intoken intoken, String... titles) {
+    super(generateTokenRequest(intoken, titles));
     this.intoken = intoken;
     msg = actions.getFirst(); // XXX realy nesessary?
 
@@ -114,15 +126,15 @@ public class GetApiToken extends DequeMWAction<GetApiToken.TokenResponse> {
    * Generates the next MediaWiki API urlEncodedToken and adds it to <code>msgs</code>.
    *
    * @param intoken type to get the urlEncodedToken for
-   * @param title   title of the article to generate the urlEncodedToken for
+   * @param titles title of the article to generate the urlEncodedToken for
    */
-  private static Get generateTokenRequest(Intoken intoken, String title) {
+  private static Get generateTokenRequest(Intoken intoken, String... titles) {
     return new ApiRequestBuilder() //
         .action("query") //
-        .formatXml() //
+        .formatJson() //
         .param("prop", "info") //
-        .param("intoken", intoken.toString().toLowerCase()) //
-        .param("titles", MediaWiki.urlEncode(title)) //
+        .param("intoken", intoken.getRequestName()) //
+        .param("titles", MediaWiki.urlEncode(MediaWiki.pipeJoined(titles))) //
         .buildGet();
 
   }
@@ -135,8 +147,10 @@ public class GetApiToken extends DequeMWAction<GetApiToken.TokenResponse> {
     if (hm.getRequest().equals(msg.getRequest())) {
       log.debug("Got returning text: \"{}\"", s);
       try {
-        Optional<XmlElement> elem = XmlConverter.getChildOpt(s, "query", "pages", "page");
-        token = elem.transform(TOKEN_FUNCTIONS.get(intoken));
+        JsonNode node = mapper.toJsonNode(s).path("query").path("pages");
+        String fieldName = node.fieldNames().next();
+        node = node.get(fieldName).get(intoken.getResponseName());
+        token = Optional.of(node.asText());
         // TODO check intoken from tokenfunc for null
 
         log.debug("urlEncodedToken = {} for: {}", token, msg.getRequest());
@@ -150,17 +164,6 @@ public class GetApiToken extends DequeMWAction<GetApiToken.TokenResponse> {
         }
       }
     }
-  }
-
-  private static Function<XmlElement, String> tokenFunctionOf(final String key) {
-    return new NonnullFunction<XmlElement, String>() {
-
-      @Nonnull
-      @Override
-      public String applyNonnull(@Nonnull XmlElement xmlElement) {
-        return xmlElement.getAttributeValueNonNull(key);
-      }
-    };
   }
 
 }

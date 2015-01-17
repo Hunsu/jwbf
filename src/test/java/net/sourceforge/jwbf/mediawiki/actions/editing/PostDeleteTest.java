@@ -36,17 +36,18 @@ public class PostDeleteTest {
     String xml = null;
 
     // WHEN
-    testee.parseXml(xml);
+    testee.parse(xml);
 
   }
 
   @Test
+  //TODO @Hunsu: test parse json
   public void testParseXml() {
     // GIVEN
     String xml = TestHelper.wikiResponse(Version.MW1_23, "delete.xml");
 
     // WHEN
-    testee.parseXml(xml);
+    testee.parse(xml);
 
     // THEN
     Mockito.verify(testee).logDeleted("Delete0", "content was: \"A\" "

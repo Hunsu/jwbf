@@ -1,7 +1,7 @@
 package net.sourceforge.jwbf.mediawiki.actions.editing;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Optional;
 import com.google.common.base.Strings;
 import net.sourceforge.jwbf.core.actions.Post;
 import net.sourceforge.jwbf.core.actions.RequestBuilder;
@@ -10,8 +10,7 @@ import net.sourceforge.jwbf.core.actions.util.PermissionException;
 import net.sourceforge.jwbf.core.actions.util.ProcessException;
 import net.sourceforge.jwbf.core.contentRep.Userinfo;
 import net.sourceforge.jwbf.core.internal.Checked;
-import net.sourceforge.jwbf.mapper.XmlConverter;
-import net.sourceforge.jwbf.mapper.XmlElement;
+import net.sourceforge.jwbf.mapper.JsonMapper;
 import net.sourceforge.jwbf.mediawiki.ApiRequestBuilder;
 import net.sourceforge.jwbf.mediawiki.MediaWiki;
 import net.sourceforge.jwbf.mediawiki.actions.util.ApiException;
@@ -21,12 +20,15 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Action class using the MediaWiki-API's to allow your bot to delete articles in your MediaWiki add
- * the following line to your MediaWiki's  LocalSettings.php:<br>
+ * the following line to your MediaWiki's LocalSettings.php:<br>
+ *
  * <pre>
  * $wgEnableWriteAPI = true;
  * $wgGroupPermissions['bot']['delete'] = true;
  * </pre>
+ *
  * Delete an article with
+ *
  * <pre>
  * String name = ...
  * MediaWikiBot bot = ...
@@ -48,6 +50,8 @@ public class PostDelete extends MWAction {
   private final GetApiToken tokenAction;
   private boolean delToken = true;
 
+  private JsonMapper mapper = new JsonMapper();
+
   /**
    * Constructs a new <code>PostDelete</code> action.
    *
@@ -61,9 +65,11 @@ public class PostDelete extends MWAction {
   /**
    * Constructs a new <code>PostDelete</code> action.
    *
-   * @param title  the title of the page to delete
-   * @param reason reason for the deletion (may be null) in case of a precessing exception in case
-   *               of an action exception
+   * @param title
+   *            the title of the page to delete
+   * @param reason
+   *            reason for the deletion (may be null) in case of a precessing exception in case of
+   *            an action exception
    */
   public PostDelete(Userinfo userinfo, String title, String reason) {
     this.title = Checked.nonBlank(title, "title");
@@ -84,7 +90,7 @@ public class PostDelete extends MWAction {
     log.trace("enter PostDelete.generateDeleteRequest(String)");
     RequestBuilder requestBuilder = new ApiRequestBuilder() //
         .action("delete") //
-        .formatXml() //
+        .formatJson() //
         .postParam(tokenAction.get().token()) //
         .param("title", MediaWiki.urlEncode(title)) //
         ;
@@ -109,7 +115,7 @@ public class PostDelete extends MWAction {
       tokenAction.processReturningText(s, hm);
       delToken = false;
     } else {
-      parseXml(s);
+      parse(s);
       setHasMoreMessages(false);
     }
 
@@ -117,14 +123,13 @@ public class PostDelete extends MWAction {
   }
 
   @VisibleForTesting
-  void parseXml(String xml) {
-    log.debug("Got returning text: \"{}\"", xml);
+  void parse(String json) {
+    log.debug("Got returning text: \"{}\"", json);
+    JsonNode node = mapper.toJsonNode(json).path("error");
     try {
-      XmlElement doc = XmlConverter.getRootElementWithError(xml);
-      Optional<ApiException> exceptionOptional = doc.getErrorElement() //
-          .transform(XmlConverter.toApiException());
-      if (exceptionOptional.isPresent()) {
-        ApiException apiException = exceptionOptional.get();
+      if (!node.isMissingNode()) {
+        ApiException apiException =
+            new ApiException(node.get("code").asText(), node.get("info").asText());
         String code = apiException.getCode();
         if ("missingtitle".equals(code)) {
           log.warn("{}", apiException.getValue());
@@ -137,12 +142,13 @@ public class PostDelete extends MWAction {
           throw apiException;
         }
       }
-      logDelete(doc);
+      logDelete(node);
     } catch (IllegalArgumentException e) {
       String msg = e.getMessage();
       log.error(msg, e);
-      if (xml.startsWith("unknown_action:")) {
-        String eMsg = "unknown_action; Adding '$wgEnableWriteAPI = true;' to your MediaWiki's " + //
+      if (json.startsWith("unknown_action:")) {
+        String eMsg = "unknown_action; Adding '$wgEnableWriteAPI = true;' " +
+            "to your MediaWiki's " + //
             "LocalSettings.php might remove this problem.";
         throw new ProcessException(eMsg);
       }
@@ -150,12 +156,12 @@ public class PostDelete extends MWAction {
     }
   }
 
-  private void logDelete(XmlElement rootXmlElement) {
-    XmlElement elem = rootXmlElement.getChild("delete");
-    if (elem != XmlElement.NULL_XML) {
+  private void logDelete(JsonNode node) {
+    node = node.path("delete");
+    if (!node.isMissingNode()) {
       // process reply for delete request
-      String title = elem.getAttributeValue("title");
-      String reason = elem.getAttributeValue("reason");
+      String title = node.get("title").asText();
+      String reason = node.get("reason").asText();
       logDeleted(title, reason);
     } else {
       log.error("Unknow reply. This is not a reply for a delete action.");

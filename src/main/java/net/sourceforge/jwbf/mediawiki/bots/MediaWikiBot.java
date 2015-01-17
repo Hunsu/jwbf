@@ -19,6 +19,7 @@ import net.sourceforge.jwbf.core.contentRep.Userinfo;
 import net.sourceforge.jwbf.core.internal.Checked;
 import net.sourceforge.jwbf.mediawiki.MediaWiki;
 import net.sourceforge.jwbf.mediawiki.MediaWiki.Version;
+import net.sourceforge.jwbf.mediawiki.actions.WatchUnwatchAction;
 import net.sourceforge.jwbf.mediawiki.actions.editing.GetRevision;
 import net.sourceforge.jwbf.mediawiki.actions.editing.PostDelete;
 import net.sourceforge.jwbf.mediawiki.actions.editing.PostModifyContent;
@@ -354,6 +355,20 @@ public class MediaWikiBot implements WikiBot {
   @Override
   public final String getWikiType() {
     return MediaWiki.class.getSimpleName() + " " + getVersion();
+  }
+
+  public void watch(String... titles) {
+    if (!isLoggedIn()) {
+      throw new ActionException("Please login first");
+    }
+    getPerformedAction(new WatchUnwatchAction(true, titles));
+  }
+
+  public void unwatch(String... titles) {
+    if (!isLoggedIn()) {
+      throw new ActionException("Please login first");
+    }
+    getPerformedAction(new WatchUnwatchAction(false, titles));
   }
 
 }

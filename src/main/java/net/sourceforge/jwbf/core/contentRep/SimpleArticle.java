@@ -47,20 +47,16 @@ public class SimpleArticle implements ArticleMeta, Serializable, ContentSetable 
   private boolean minorEdit = false;
   private long editTimestamp = newZeroDate().getTime();
   private String revId = "";
+  private int pageId;
 
   private static Pattern redirectPattern = Pattern //
-      .compile("#(.*)redirect (.*)" //
-          , Pattern.CASE_INSENSITIVE);
+      .compile("#(.*)redirect (.*)", Pattern.CASE_INSENSITIVE);
 
   @VisibleForTesting
   public static Date newZeroDate() {
     return new Date(0);
   }
 
-  /**
-   *
-   *
-   */
   public SimpleArticle() {
     // do nothing
   }
@@ -93,7 +89,7 @@ public class SimpleArticle implements ArticleMeta, Serializable, ContentSetable 
   }
 
   /**
-   * @param text  of article
+   * @param text of article
    * @param title of article
    * @deprecated use {@link #SimpleArticle(String)} and {@link #setText(String)} instead.
    */
@@ -154,7 +150,8 @@ public class SimpleArticle implements ArticleMeta, Serializable, ContentSetable 
   }
 
   /**
-   * @param label the label, like "Main Page"
+   * @param label
+   *            the label, like "Main Page"
    * @deprecated use {@link #setTitle(String)} instead
    */
   @Deprecated
@@ -259,6 +256,7 @@ public class SimpleArticle implements ArticleMeta, Serializable, ContentSetable 
         .add("editor", editor) // XXX check equals
         .add("minorEdit", minorEdit) // XXX check equals
         .add("editTimestamp", editTimestamp) //
+        .add("pageid", pageId) //
         .add("revId", revId) //
         .toString();
   }
@@ -277,9 +275,20 @@ public class SimpleArticle implements ArticleMeta, Serializable, ContentSetable 
   }
 
   /**
-   * @param revId the
+   * @param revId
+   *            the
    */
   public void setRevisionId(String revId) {
     this.revId = revId;
+  }
+
+  // TODO @Hunsu never used, do we realy need this method?
+  public int getPageId() {
+    return pageId;
+  }
+
+  public void setPageId(int pageId) {
+    this.pageId = pageId;
+
   }
 }
