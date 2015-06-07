@@ -53,7 +53,7 @@ public class HttpActionClientTest {
   private static final Function<String, Long> TO_LONG = new Function<String, Long>() {
 
     @Override
-    public Long apply(String input) {
+    public Long apply(final String input) {
       return Long.valueOf(input.trim());
     }
   };
@@ -61,7 +61,7 @@ public class HttpActionClientTest {
 
   public static final ReturningTextProcessor MOCK_HANDLER = new ReturningTextProcessor() {
     @Override
-    public String processReturningText(String s, HttpAction action) {
+    public String processReturningText(final String s, final HttpAction action) {
       throw new UnsupportedOperationException();
     }
   };
@@ -192,7 +192,6 @@ public class HttpActionClientTest {
       Post post = RequestBuilder.of(url) //
           .param("b", "c") //
           .postParam("d", "c") //
-          .param("b", "e") //
           .postParam("c", "e").buildPost() //
           .postParam("a", "b");
 
@@ -215,7 +214,7 @@ public class HttpActionClientTest {
     }
   }
 
-  private List<String> multipartOf(String key, String value) {
+  private List<String> multipartOf(final String key, final String value) {
     return ImmutableList.<String>builder() //
         .add("Content-Disposition: form-data; name=\"" + key + "\"") //
         .add("Content-Type: */*; charset=UTF-8") //
@@ -258,7 +257,7 @@ public class HttpActionClientTest {
     }
   }
 
-  private String userAgentString(String userAgentString) {
+  private String userAgentString(final String userAgentString) {
     return userAgentString + "JWBF/Version_unknown Apache-HttpClient/4.3.4 (java 1.5)";
   }
 
@@ -413,8 +412,8 @@ public class HttpActionClientTest {
         logLinesSupplier.get());
   }
 
-  private static void assertAgentPart(String expectedName, String expectedVersion,
-      String expectedComment, List<HttpActionClient.UserAgentPart> actualParts) {
+  private static void assertAgentPart(final String expectedName, final String expectedVersion,
+      final String expectedComment, final List<HttpActionClient.UserAgentPart> actualParts) {
     HttpActionClient.UserAgentPart onlyElement = Iterables.getOnlyElement(actualParts);
     assertEquals(expectedName, onlyElement.name);
     assertEquals(expectedVersion, onlyElement.version);
@@ -574,7 +573,7 @@ public class HttpActionClientTest {
     }
   }
 
-  private ImmutableList<Long> toRanges(Iterable<Long> ints) {
+  private ImmutableList<Long> toRanges(final Iterable<Long> ints) {
     ImmutableList<Long> intList = ImmutableList.copyOf(ints);
     Builder<Long> builder = ImmutableList.builder();
     for (int i = 0; i < intList.size() - 1; i++) {
@@ -610,7 +609,7 @@ public class HttpActionClientTest {
     assertEquals("a\nb\n", result);
   }
 
-  private String whenWriteToString(String text) throws IOException {
+  private String whenWriteToString(final String text) throws IOException {
     testee = HttpActionClient.of("http://localhost/");
     HttpAction action = mock(HttpAction.class);
     when(action.getCharset()).thenReturn("UTF-8");
