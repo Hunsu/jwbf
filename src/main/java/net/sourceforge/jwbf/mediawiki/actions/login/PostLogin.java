@@ -20,6 +20,7 @@
 package net.sourceforge.jwbf.mediawiki.actions.login;
 
 import java.util.HashMap;
+import java.util.Map;
 
 import net.sourceforge.jwbf.core.actions.Post;
 import net.sourceforge.jwbf.core.actions.RequestBuilder;
@@ -30,6 +31,7 @@ import net.sourceforge.jwbf.mapper.JsonMapper;
 import net.sourceforge.jwbf.mediawiki.ApiRequestBuilder;
 import net.sourceforge.jwbf.mediawiki.actions.util.MWAction;
 import net.sourceforge.jwbf.mediawiki.contentRep.LoginData;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -89,7 +91,7 @@ public class PostLogin extends MWAction {
    */
   @Override
   public String processAllReturningText(final String s) {
-    HashMap<String, Object> map = mapper.toMap(s);
+    Map<String, Object> map = mapper.toMap(s);
     findContent(map);
 
     return s;
@@ -98,7 +100,7 @@ public class PostLogin extends MWAction {
   /**
    * @param map the, where the search begins
    */
-  private void findContent(final HashMap<String, Object> map) {
+  private void findContent(final Map<String, Object> map) {
     @SuppressWarnings("unchecked") HashMap<String, String> data =
         (HashMap<String, String>) map.get("login");
     String result = data.get("result");
